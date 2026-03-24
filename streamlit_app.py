@@ -275,7 +275,7 @@ def run_pipeline(states, product):
 
             # 成功 → 立即显示下载按钮
             st.success(f"✅ {state_name} 报告生成完成！")
-            show_download_buttons(state, product)
+            show_download_buttons(state, product, prefix="gen_")
             completed.append(state)
 
         except Exception as e:
@@ -288,7 +288,7 @@ def run_pipeline(states, product):
         st.success(f"🎉 全部完成！共生成 {len(completed)} 份报告")
 
 
-def show_download_buttons(state_code, product):
+def show_download_buttons(state_code, product, prefix=""):
     """显示某个州的下载按钮"""
     output_dir = Path(__file__).parent / "output" / f"{state_code}_{product}"
     state_name = US_STATES.get(state_code, {}).get("name", state_code)
@@ -316,7 +316,7 @@ def show_download_buttons(state_code, product):
                     file_name=f"{state_code}_{fname}",
                     help=desc,
                     use_container_width=True,
-                    key=f"dl_{state_code}_{fname}",
+                    key=f"{prefix}dl_{state_code}_{fname}",
                 )
 
     # HTML预览（iframe）
@@ -324,7 +324,7 @@ def show_download_buttons(state_code, product):
     if html_path.exists():
         with st.expander(f"👁️ 预览 {state_name} HTML报告", expanded=False):
             html_content = html_path.read_text(encoding="utf-8")
-            st.components.v1.html(html_content, height=800, scrolling=True)
+            st.components.v1.html(html_content, height=800, scrolling=True, key=f"{prefix}preview_{state_code}")
 
 
 def render_reports_tab(product):
@@ -346,7 +346,7 @@ def render_reports_tab(product):
         state_name = US_STATES.get(state_code, {}).get("name", state_code)
 
         with st.expander(f"📋 {state_name} ({state_code})", expanded=len(reports) == 1):
-            show_download_buttons(state_code, product)
+            show_download_buttons(state_code, product, prefix="hist_")
 
             # 报告统计
             reports_json = report_dir / "reports_raw.json"
