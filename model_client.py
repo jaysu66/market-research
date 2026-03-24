@@ -40,7 +40,7 @@ PROVIDERS = {
         "env_key": "KIMI_API_KEY",
     },
     "minimax": {
-        "base_url": "https://api.minimax.chat/v1",
+        "base_url": os.environ.get("MINIMAX_BASE_URL", "https://api.minimaxi.chat/v1"),
         "env_key": "MINIMAX_API_KEY",
     },
     "xiaomi": {
