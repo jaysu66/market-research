@@ -280,10 +280,14 @@ def run_pipeline(states, product):
             # 上传到Supabase持久化
             try:
                 from storage import upload_report
-                upload_report(state, product, output_dir)
-                st.caption("☁️ 已同步到云端存储")
+                out_dir = Path(__file__).parent / "output" / f"{state}_{product}"
+                uploaded = upload_report(state, product, out_dir)
+                if uploaded:
+                    st.caption(f"☁️ 已同步到云端（{len(uploaded)}个文件）")
+                else:
+                    st.caption("☁️ 云端同步跳过（无SUPABASE_KEY）")
             except Exception as e:
-                st.caption(f"☁️ 云端同步跳过: {e}")
+                st.caption(f"☁️ 云端同步失败: {e}")
 
             completed.append(state)
 
@@ -334,7 +338,7 @@ def show_download_buttons(state_code, product, prefix=""):
         try:
             with st.expander(f"👁️ 预览 {state_name} HTML报告", expanded=False):
                 html_content = html_path.read_text(encoding="utf-8")
-                st.components.v1.html(html_content, height=800, scrolling=True)
+                st.components.v1.html(html_content, height=800)
         except Exception:
             pass
 
