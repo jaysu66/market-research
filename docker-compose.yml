@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  market-research-api:
+    build: .
+    container_name: market-research-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      - HUD_API_KEY=${HUD_API_KEY:-}
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
+    volumes:
+      - ./cache:/app/cache
+      - ./output:/app/output
+    mem_limit: 512m
+    cpus: 1.0
