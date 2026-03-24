@@ -7,344 +7,361 @@ import time
 from pathlib import Path
 
 st.set_page_config(
-    page_title="Market Research System",
+    page_title="Market Research · 市场调研",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# 自定义CSS
+# ========== CSS ==========
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
 
-    .stApp {
-        font-family: 'Inter', 'Noto Sans SC', sans-serif;
-    }
-    .main-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%);
-        padding: 2rem;
-        border-radius: 16px;
-        color: white;
-        margin-bottom: 2rem;
-    }
-    .main-header h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin: 0;
-    }
-    .main-header p {
-        opacity: 0.7;
-        margin-top: 0.5rem;
-    }
-    .stat-box {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 1.2rem;
-        text-align: center;
-    }
-    .stat-box .label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        color: #64748b;
-        letter-spacing: 0.5px;
-    }
-    .stat-box .value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #0f172a;
-    }
-    .step-badge {
-        display: inline-block;
-        background: #2563eb;
-        color: white;
-        border-radius: 20px;
-        padding: 4px 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-right: 8px;
-    }
-    .step-done {
-        background: #059669;
-    }
-    .step-running {
-        background: #d97706;
-    }
+.stApp { font-family: 'Inter', 'Noto Sans SC', sans-serif; }
+
+/* Header */
+.hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%);
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    color: white;
+    margin-bottom: 1.5rem;
+}
+.hero h1 { font-size: 1.8rem; font-weight: 700; margin: 0 0 0.3rem 0; }
+.hero p { opacity: 0.75; margin: 0; font-size: 0.9rem; }
+
+/* Cards */
+.card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.2rem;
+    margin-bottom: 0.8rem;
+}
+.card h4 { margin: 0 0 0.5rem 0; color: #0f172a; }
+
+/* State chips */
+.state-chip {
+    display: inline-block;
+    background: #eff6ff;
+    color: #1e40af;
+    border-radius: 8px;
+    padding: 6px 14px;
+    margin: 3px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Step indicator */
+.step-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+.step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #475569;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 600;
+    margin-right: 12px; flex-shrink: 0;
+}
+.step-active .step-num { background: #2563eb; color: white; }
+.step-done .step-num { background: #059669; color: white; }
+.step-label { font-size: 0.85rem; color: #334155; }
+
+/* Download cards */
+.dl-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.2s;
+}
+.dl-card:hover { border-color: #2563eb; background: #eff6ff; }
+.dl-icon { font-size: 2rem; margin-bottom: 0.3rem; }
+.dl-title { font-weight: 600; color: #0f172a; font-size: 0.85rem; }
+.dl-sub { color: #64748b; font-size: 0.75rem; }
+
+/* Pipeline info */
+.pipeline-info {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: #166534;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 导入业务模块 ==========
+# ========== 导入 ==========
 from config import US_STATES, PRODUCTS
 
 
-def check_api_keys():
-    """检查必要的API Key"""
-    keys = {}
+def load_secrets():
+    """从Secrets或.env加载API Keys"""
+    keys_needed = ["OPENROUTER_API_KEY", "SILICONFLOW_API_KEY", "MINIMAX_API_KEY"]
     missing = []
-
-    # 从 Streamlit Secrets 或环境变量获取
-    for key_name in ["OPENROUTER_API_KEY", "SILICONFLOW_API_KEY", "MINIMAX_API_KEY",
-                     "FRED_API_KEY", "HUD_API_KEY", "GOOGLE_PLACES_API_KEY"]:
-        val = st.secrets.get(key_name, os.environ.get(key_name, ""))
+    for k in keys_needed:
+        val = ""
+        try:
+            val = st.secrets.get(k, "")
+        except Exception:
+            pass
+        if not val:
+            val = os.environ.get(k, "")
         if val:
-            keys[key_name] = val
-            os.environ[key_name] = val
-        elif key_name in ["OPENROUTER_API_KEY", "SILICONFLOW_API_KEY", "MINIMAX_API_KEY"]:
-            missing.append(key_name)
-
-    return keys, missing
+            os.environ[k] = val
+        else:
+            missing.append(k)
+    return missing
 
 
 def main():
-    # Header
+    missing = load_secrets()
+
+    # Hero
     st.markdown("""
-    <div class="main-header">
+    <div class="hero">
         <h1>📊 Market Research System</h1>
-        <p>美国市场调研报告自动生成系统 — 输入品类和州名，自动搜索数据、生成专业报告</p>
+        <p>美国窗帘/窗饰市场调研报告自动生成 · 9个官方API + AI搜索 + 智能报告</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # 检查API Keys
-    keys, missing = check_api_keys()
-
     if missing:
-        st.error(f"缺少 API Keys: {', '.join(missing)}")
-        st.info("请在 Streamlit Cloud 的 Settings → Secrets 中配置，或在本地设置环境变量。")
-        with st.expander("如何配置 Secrets"):
-            st.code("""
-# 在 Streamlit Cloud Settings → Secrets 中添加：
-OPENROUTER_API_KEY = "sk-or-v1-..."
-DEEPSEEK_API_KEY = "sk-..."
-SILICONFLOW_API_KEY = "sk-..."
-FRED_API_KEY = "..."
-BLS_API_KEY = "..."
-HUD_API_KEY = "..."
-            """)
+        st.error(f"⚠️ 缺少 API Keys: {', '.join(missing)}")
+        st.info("在 Streamlit Cloud → Settings → Secrets 中配置TOML格式的API密钥。")
         return
 
     # ========== 侧边栏 ==========
     with st.sidebar:
-        st.header("⚙️ 配置")
+        st.markdown("### ⚙️ 报告配置")
 
         product = st.selectbox(
-            "选择品类",
+            "📦 品类",
             options=list(PRODUCTS.keys()),
             format_func=lambda x: PRODUCTS[x]["display_name"],
         )
 
         state_options = {k: f"{v['name']} ({k})" for k, v in US_STATES.items()}
         selected_states = st.multiselect(
-            "选择州（可多选）",
+            "🗺️ 选择州",
             options=list(state_options.keys()),
             format_func=lambda x: state_options[x],
             default=["TX"],
         )
 
         st.divider()
-
-        # 快捷选择
-        col1, col2 = st.columns(2)
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             if st.button("🇺🇸 全选50州", use_container_width=True):
-                st.session_state["select_all"] = True
+                st.session_state["_sel"] = list(US_STATES.keys())
                 st.rerun()
-        with col2:
-            if st.button("🔝 Top 10州", use_container_width=True):
-                st.session_state["select_top10"] = True
+        with c2:
+            if st.button("🔝 Top 10", use_container_width=True):
+                st.session_state["_sel"] = ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA", "NC", "MI"]
                 st.rerun()
 
-        if st.session_state.get("select_all"):
-            selected_states = list(US_STATES.keys())
-            st.session_state["select_all"] = False
-
-        if st.session_state.get("select_top10"):
-            selected_states = ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA", "NC", "MI"]
-            st.session_state["select_top10"] = False
+        if "_sel" in st.session_state:
+            selected_states = st.session_state.pop("_sel")
 
         st.divider()
-        st.caption(f"已选: {len(selected_states)} 个州")
-        st.caption(f"预计费用: ${len(selected_states) * 0.043:.2f}")
-        st.caption(f"预计时间: {len(selected_states) * 15 // 60}分{len(selected_states) * 15 % 60}秒")
+        n = len(selected_states)
+        st.markdown(f"""
+        **已选:** {n} 个州
+        **预计费用:** ${n * 0.04:.2f}
+        **预计时间:** ~{n * 5}分钟
+        """)
+
+        st.divider()
+        st.markdown("""
+        <div class="pipeline-info">
+        <b>Pipeline 流程</b><br>
+        ① API采集 (Census/FRED/BLS)<br>
+        ② 智能搜索 (Sonar×11)<br>
+        ③ 数据清洗验证<br>
+        ④ AI报告生成 (MiniMax-M2.7)<br>
+        ⑤ HTML + Word 导出
+        </div>
+        """, unsafe_allow_html=True)
 
     # ========== 主区域 ==========
-    tab1, tab2, tab3 = st.tabs(["🚀 生成报告", "📁 已生成报告", "📊 数据总览"])
+    tab1, tab2 = st.tabs(["🚀 生成报告", "📁 已生成报告"])
 
     with tab1:
-        if not selected_states:
-            st.warning("请在左侧选择至少一个州")
-            return
-
-        st.subheader(f"即将生成: {len(selected_states)} 份报告")
-
-        # 显示选中的州
-        cols = st.columns(min(len(selected_states), 8))
-        for i, state in enumerate(selected_states[:8]):
-            with cols[i]:
-                st.metric(US_STATES[state]["name"], state)
-        if len(selected_states) > 8:
-            st.caption(f"... 还有 {len(selected_states) - 8} 个州")
-
-        if st.button("🚀 开始生成", type="primary", use_container_width=True):
-            run_generation(selected_states, product)
+        render_generate_tab(selected_states, product)
 
     with tab2:
-        show_existing_reports(product)
-
-    with tab3:
-        show_data_overview()
+        render_reports_tab(product)
 
 
-def run_generation(states: list, product: str):
-    """运行报告生成流程"""
+def render_generate_tab(states, product):
+    """生成报告标签页"""
+    if not states:
+        st.info("👈 请在左侧选择至少一个州")
+        return
+
+    # 显示已选州
+    chips = "".join([f'<span class="state-chip">{US_STATES[s]["name"]}</span>' for s in states])
+    st.markdown(f'<div style="margin-bottom:1rem">{chips}</div>', unsafe_allow_html=True)
+
+    if st.button("🚀 开始生成报告", type="primary", use_container_width=True, key="gen_btn"):
+        run_pipeline(states, product)
+
+
+def run_pipeline(states, product):
+    """执行完整pipeline并显示结果"""
     from precompute import precompute_state
     from searcher import search_all
-    from pipeline import run_pipeline
+    from pipeline import run_pipeline as run_data_pipeline
     from generator import generate_reports
     from exporter import export_all
 
     total = len(states)
-    progress = st.progress(0, text="准备中...")
-    status = st.empty()
+    completed = []
 
     for idx, state in enumerate(states):
         state_name = US_STATES[state]["name"]
-        pct = idx / total
+        st.markdown(f"---")
+        st.subheader(f"📍 {state_name} ({state}) — [{idx+1}/{total}]")
 
-        # Step 1: 预计算
-        progress.progress(pct + 0.0 / total, text=f"[{idx+1}/{total}] {state_name} — 拉取API数据...")
-        status.info(f"📡 正在获取 {state_name} 的 Census/FRED/BLS/HUD 数据...")
+        steps = st.columns(5)
+        step_labels = ["API采集", "搜索", "数据清洗", "报告生成", "导出"]
+        step_status = [st.empty() for _ in range(5)]
+        progress = st.progress(0)
+
+        # 每个step的容器
+        for i, label in enumerate(step_labels):
+            with steps[i]:
+                step_status[i] = st.empty()
+                step_status[i].markdown(f"⬜ {label}")
+
         try:
+            # Step 1
+            step_status[0].markdown(f"🔄 **API采集**")
+            progress.progress(0.05)
             precompute_state(state, product)
-        except Exception as e:
-            st.error(f"❌ {state_name} 预计算失败: {e}")
-            continue
+            step_status[0].markdown(f"✅ API采集")
+            progress.progress(0.2)
 
-        # Step 2: 搜索
-        progress.progress(pct + 0.2 / total, text=f"[{idx+1}/{total}] {state_name} — 搜索中...")
-        status.info(f"🔍 正在搜索 {state_name} 的市场数据（Sonar 9个query）...")
-        try:
+            # Step 2
+            step_status[1].markdown(f"🔄 **搜索**")
             search_all(state, product)
-        except Exception as e:
-            st.error(f"❌ {state_name} 搜索失败: {e}")
-            continue
+            step_status[1].markdown(f"✅ 搜索")
+            progress.progress(0.4)
 
-        # Step 3: 验证管线
-        progress.progress(pct + 0.4 / total, text=f"[{idx+1}/{total}] {state_name} — 提取数据...")
-        status.info(f"⚙️ 正在提取和验证 {state_name} 的结构化数据...")
-        try:
-            run_pipeline(state, product)
-        except Exception as e:
-            st.error(f"❌ {state_name} 管线失败: {e}")
-            continue
+            # Step 3
+            step_status[2].markdown(f"🔄 **数据清洗**")
+            run_data_pipeline(state, product)
+            step_status[2].markdown(f"✅ 数据清洗")
+            progress.progress(0.55)
 
-        # Step 4: 生成报告
-        progress.progress(pct + 0.6 / total, text=f"[{idx+1}/{total}] {state_name} — 生成报告...")
-        status.info(f"📝 正在生成 {state_name} 的调研报告和商业分析报告...")
-        try:
+            # Step 4
+            step_status[3].markdown(f"🔄 **报告生成**")
             generate_reports(state, product)
-        except Exception as e:
-            st.error(f"❌ {state_name} 报告生成失败: {e}")
-            continue
+            step_status[3].markdown(f"✅ 报告生成")
+            progress.progress(0.85)
 
-        # Step 5: 导出
-        progress.progress(pct + 0.9 / total, text=f"[{idx+1}/{total}] {state_name} — 导出文件...")
-        status.info(f"📄 正在导出 {state_name} 的 HTML + DOCX 报告...")
-        try:
+            # Step 5
+            step_status[4].markdown(f"🔄 **导出**")
             export_all(state, product)
+            step_status[4].markdown(f"✅ 导出")
+            progress.progress(1.0)
+
+            # 成功 → 立即显示下载按钮
+            st.success(f"✅ {state_name} 报告生成完成！")
+            show_download_buttons(state, product)
+            completed.append(state)
+
         except Exception as e:
-            st.error(f"❌ {state_name} 导出失败: {e}")
+            st.error(f"❌ {state_name} 失败: {e}")
             continue
 
-        st.success(f"✅ {state_name} 完成")
+    if completed:
+        st.balloons()
+        st.markdown("---")
+        st.success(f"🎉 全部完成！共生成 {len(completed)} 份报告")
 
-    progress.progress(1.0, text="全部完成!")
-    status.success(f"🎉 全部 {total} 个州的报告已生成完毕！")
-    st.balloons()
+
+def show_download_buttons(state_code, product):
+    """显示某个州的下载按钮"""
+    output_dir = Path(__file__).parent / "output" / f"{state_code}_{product}"
+    state_name = US_STATES.get(state_code, {}).get("name", state_code)
+
+    if not output_dir.exists():
+        return
+
+    cols = st.columns(4)
+    files = [
+        ("report_a.docx", "📄 数据调研报告", "Word · 11章完整版"),
+        ("report_b.docx", "📊 商业分析报告", "Word · Go/No-Go决策"),
+        ("report.html", "🌐 HTML完整报告", "含ECharts交互图表"),
+        ("data_pool.json", "💾 原始数据池", "JSON · 全部API数据"),
+    ]
+
+    for i, (fname, title, desc) in enumerate(files):
+        fpath = output_dir / fname
+        if fpath.exists():
+            with cols[i]:
+                with open(fpath, "rb") as f:
+                    data = f.read()
+                st.download_button(
+                    label=f"{title}",
+                    data=data,
+                    file_name=f"{state_code}_{fname}",
+                    help=desc,
+                    use_container_width=True,
+                    key=f"dl_{state_code}_{fname}",
+                )
+
+    # HTML预览（iframe）
+    html_path = output_dir / "report.html"
+    if html_path.exists():
+        with st.expander(f"👁️ 预览 {state_name} HTML报告", expanded=False):
+            html_content = html_path.read_text(encoding="utf-8")
+            st.components.v1.html(html_content, height=800, scrolling=True)
 
 
-def show_existing_reports(product: str):
-    """显示已生成的报告"""
+def render_reports_tab(product):
+    """已生成报告标签页"""
     output_dir = Path(__file__).parent / "output"
     if not output_dir.exists():
-        st.info("还没有生成过报告")
+        st.info("还没有生成过报告。点击「生成报告」标签开始。")
         return
 
     reports = sorted(output_dir.glob(f"*_{product}"))
     if not reports:
-        st.info(f"还没有生成过 {PRODUCTS[product]['display_name']} 的报告")
+        st.info(f"还没有 {PRODUCTS[product]['display_name']} 的报告。")
         return
+
+    st.markdown(f"### 已生成 {len(reports)} 份报告")
 
     for report_dir in reports:
         state_code = report_dir.name.split("_")[0]
         state_name = US_STATES.get(state_code, {}).get("name", state_code)
 
-        with st.expander(f"📋 {state_name} ({state_code})", expanded=False):
-            col1, col2, col3, col4 = st.columns(4)
+        with st.expander(f"📋 {state_name} ({state_code})", expanded=len(reports) == 1):
+            show_download_buttons(state_code, product)
 
-            # 下载按钮
-            for fname, label, col in [
-                ("report_a.docx", "📄 数据报告", col1),
-                ("report_b.docx", "📊 商业分析", col2),
-                ("report_a.html", "🌐 HTML报告A", col3),
-                ("report_b.html", "🌐 HTML报告B", col4),
-            ]:
-                fpath = report_dir / fname
-                if fpath.exists():
-                    with col:
-                        with open(fpath, "rb") as f:
-                            st.download_button(
-                                label=label,
-                                data=f.read(),
-                                file_name=f"{state_code}_{fname}",
-                                use_container_width=True,
-                            )
+            # 报告统计
+            reports_json = report_dir / "reports_raw.json"
+            if not reports_json.exists():
+                reports_json = Path(__file__).parent / "cache" / f"{state_code}_{product}" / "reports.json"
 
-
-def show_data_overview():
-    """显示数据总览"""
-    cache_dir = Path(__file__).parent / "cache"
-    if not cache_dir.exists():
-        st.info("还没有缓存数据")
-        return
-
-    # 查找所有数据池
-    pools = sorted(cache_dir.glob("*/data_pool.json"))
-    if not pools:
-        st.info("还没有数据池")
-        return
-
-    for pool_path in pools:
-        state_code = pool_path.parent.name.split("_")[0]
-        state_name = US_STATES.get(state_code, {}).get("name", state_code)
-
-        with open(pool_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        with st.expander(f"📊 {state_name} 数据池", expanded=True):
-            # 人口数据
-            cities = data.get("demographics", {}).get("cities", [])
-            if cities:
-                st.caption("主要城市人口")
-                city_data = []
-                for c in cities[:8]:
-                    name = c.get("name", "").split(" city,")[0]
-                    city_data.append({
-                        "城市": name,
-                        "人口": f"{c.get('population', 0):,}",
-                        "收入中位数": f"${c.get('median_income', 0):,}",
-                        "房价中位数": f"${c.get('median_home_value', 0):,}",
-                    })
-                st.dataframe(city_data, use_container_width=True, hide_index=True)
-
-            # 数据覆盖
-            coverage = data.get("data_coverage", [])
-            gaps = data.get("data_gaps", [])
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("数据覆盖", f"{len(coverage)} 类")
-            with col2:
-                st.metric("数据缺口", f"{len(gaps)} 类")
+            if reports_json.exists():
+                with open(reports_json, "r", encoding="utf-8") as f:
+                    rdata = json.load(f)
+                ra = rdata.get("report_a_final", rdata.get("report_a_raw", ""))
+                rb = rdata.get("report_b_final", rdata.get("report_b_raw", ""))
+                c1, c2, c3 = st.columns(3)
+                c1.metric("报告A字数", f"{len(ra):,}")
+                c2.metric("报告B字数", f"{len(rb):,}")
+                c3.metric("章节数", f"{len([l for l in ra.split(chr(10)) if l.startswith('## ')])}")
 
 
 if __name__ == "__main__":
