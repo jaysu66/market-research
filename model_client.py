@@ -155,21 +155,36 @@ TASK_HIGH = {
 
 def call_task(tier: str, messages: list[dict], temperature: float = 0.7,
               max_tokens: int = 8192, timeout: int = 120, **kwargs) -> dict:
-    """按任务层级调用对应模型
+    """按任务层级调用对应模型，失败自动fallback
 
     Args:
         tier: "low" / "mid" / "high"
     """
     cfg = {"low": TASK_LOW, "mid": TASK_MID, "high": TASK_HIGH}[tier]
-    return call_model(
-        provider=cfg["provider"],
-        model=cfg["model"],
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        timeout=timeout,
-        **kwargs,
-    )
+    try:
+        return call_model(
+            provider=cfg["provider"],
+            model=cfg["model"],
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            **kwargs,
+        )
+    except RuntimeError as e:
+        # Fallback: MiniMax失败 → 切SiliconFlow DeepSeek-V3.2
+        if cfg["provider"] == "minimax":
+            print(f"  [Fallback] {cfg['provider']}/{cfg['model']} failed, trying siliconflow/deepseek-ai/DeepSeek-V3...")
+            return call_model(
+                provider="siliconflow",
+                model="deepseek-ai/DeepSeek-V3",
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=timeout,
+                **kwargs,
+            )
+        raise
 
 
 def call_sonar(query: str) -> dict:
