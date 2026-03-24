@@ -276,6 +276,15 @@ def run_pipeline(states, product):
             # 成功 → 立即显示下载按钮
             st.success(f"✅ {state_name} 报告生成完成！")
             show_download_buttons(state, product, prefix="gen_")
+
+            # 上传到Supabase持久化
+            try:
+                from storage import upload_report
+                upload_report(state, product, output_dir)
+                st.caption("☁️ 已同步到云端存储")
+            except Exception as e:
+                st.caption(f"☁️ 云端同步跳过: {e}")
+
             completed.append(state)
 
         except Exception as e:
@@ -328,40 +337,50 @@ def show_download_buttons(state_code, product, prefix=""):
 
 
 def render_reports_tab(product):
-    """已生成报告标签页"""
+    """已生成报告标签页 — 从Supabase云端读取历史"""
+    from storage import list_reports, SUPABASE_URL, SUPABASE_BUCKET
+
+    # 1. 先显示云端历史
+    cloud_reports = list_reports(product)
+
+    # 2. 再显示本地（当前session内生成的）
     output_dir = Path(__file__).parent / "output"
-    if not output_dir.exists():
+    local_reports = sorted(output_dir.glob(f"*_{product}")) if output_dir.exists() else []
+
+    if not cloud_reports and not local_reports:
         st.info("还没有生成过报告。点击「生成报告」标签开始。")
         return
 
-    reports = sorted(output_dir.glob(f"*_{product}"))
-    if not reports:
-        st.info(f"还没有 {PRODUCTS[product]['display_name']} 的报告。")
-        return
+    # 云端历史
+    if cloud_reports:
+        st.markdown(f"### ☁️ 云端历史（{len(cloud_reports)} 份）")
+        for i, report in enumerate(reversed(cloud_reports)):
+            state_name = report.get("state_name", report.get("state_code", "?"))
+            state_code = report.get("state_code", "?")
+            created = report.get("created_at", "")[:16].replace("T", " ")
+            files = report.get("files", {})
 
-    st.markdown(f"### 已生成 {len(reports)} 份报告")
+            with st.expander(f"📋 {state_name} ({state_code}) — {created}", expanded=(i == 0)):
+                cols = st.columns(len(files))
+                for j, (fname, url) in enumerate(files.items()):
+                    with cols[j]:
+                        label = {
+                            "report.html": "🌐 HTML报告",
+                            "report_a.docx": "📄 数据报告",
+                            "report_b.docx": "📊 商业分析",
+                            "data_pool.json": "💾 数据池",
+                            "reports_raw.json": "📝 原始报告",
+                        }.get(fname, fname)
+                        st.link_button(label, url, use_container_width=True)
 
-    for report_dir in reports:
-        state_code = report_dir.name.split("_")[0]
-        state_name = US_STATES.get(state_code, {}).get("name", state_code)
-
-        with st.expander(f"📋 {state_name} ({state_code})", expanded=len(reports) == 1):
-            show_download_buttons(state_code, product, prefix="hist_")
-
-            # 报告统计
-            reports_json = report_dir / "reports_raw.json"
-            if not reports_json.exists():
-                reports_json = Path(__file__).parent / "cache" / f"{state_code}_{product}" / "reports.json"
-
-            if reports_json.exists():
-                with open(reports_json, "r", encoding="utf-8") as f:
-                    rdata = json.load(f)
-                ra = rdata.get("report_a_final", rdata.get("report_a_raw", ""))
-                rb = rdata.get("report_b_final", rdata.get("report_b_raw", ""))
-                c1, c2, c3 = st.columns(3)
-                c1.metric("报告A字数", f"{len(ra):,}")
-                c2.metric("报告B字数", f"{len(rb):,}")
-                c3.metric("章节数", f"{len([l for l in ra.split(chr(10)) if l.startswith('## ')])}")
+    # 本地（当前session）
+    if local_reports:
+        st.markdown(f"### 📁 本次生成（{len(local_reports)} 份）")
+        for report_dir in local_reports:
+            state_code = report_dir.name.split("_")[0]
+            state_name = US_STATES.get(state_code, {}).get("name", state_code)
+            with st.expander(f"📋 {state_name} ({state_code})", expanded=len(local_reports) == 1):
+                show_download_buttons(state_code, product, prefix="hist_")
 
 
 if __name__ == "__main__":
