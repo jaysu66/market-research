@@ -331,9 +331,12 @@ def show_download_buttons(state_code, product, prefix=""):
     # HTML预览（iframe）
     html_path = output_dir / "report.html"
     if html_path.exists():
-        with st.expander(f"👁️ 预览 {state_name} HTML报告", expanded=False):
-            html_content = html_path.read_text(encoding="utf-8")
-            st.components.v1.html(html_content, height=800, scrolling=True, key=f"{prefix}preview_{state_code}")
+        try:
+            with st.expander(f"👁️ 预览 {state_name} HTML报告", expanded=False):
+                html_content = html_path.read_text(encoding="utf-8")
+                st.components.v1.html(html_content, height=800, scrolling=True)
+        except Exception:
+            pass
 
 
 def render_reports_tab(product):
